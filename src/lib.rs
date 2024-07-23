@@ -1,19 +1,31 @@
 #![allow(non_snake_case)]
 
+mod config;
+
+use config::Configuration;
 use libc::strncpy;
 use std::{
-    ffi::CString,
+    ffi::{CStr, CString},
     os::{raw::c_char, windows::raw::HANDLE},
+    path::PathBuf,
 };
 use widestring::U16CString;
 use windows_sys::{
-    //core::w,
+    core::w,
     Win32::{
-        Foundation::INVALID_HANDLE_VALUE,
+        Foundation::{INVALID_HANDLE_VALUE, MAX_PATH},
         Storage::FileSystem::{WIN32_FIND_DATAA, WIN32_FIND_DATAW},
-        //UI::WindowsAndMessaging::{MessageBoxW, MB_OK},
+        UI::WindowsAndMessaging::{MessageBoxW, MB_OK},
     },
 };
+
+#[repr(C)]
+pub struct FsDefaultParamStruct {
+    size: i32,
+    PluginInterfaceVersionLow: u32,
+    PluginInterfaceVersionHi: u32,
+    DefaultIniName: [c_char; MAX_PATH as usize],
+}
 
 #[no_mangle]
 pub unsafe extern "stdcall" fn FsInitW(
@@ -90,4 +102,17 @@ pub unsafe extern "stdcall" fn FsFindNext(
 #[no_mangle]
 pub unsafe extern "stdcall" fn FsFindClose(_handle: HANDLE) -> i32 {
     0
+}
+
+#[no_mangle]
+pub unsafe extern "stdcall" fn FsSetDefaultParams(dps: *const FsDefaultParamStruct) {
+    let c = Configuration::get();
+    let s = CStr::from_ptr((&(*dps).DefaultIniName[0]) as *const i8);
+    let mut p = PathBuf::from(s.to_str().unwrap());
+    
+    p.pop();
+    
+    p.push("tc_yt.ini");
+
+    c.load_from_file(p.as_path());
 }
