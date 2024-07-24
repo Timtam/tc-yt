@@ -16,7 +16,7 @@ impl Configuration {
     pub fn get() -> &'static Self {
         static CONFIG: OnceLock<Configuration> = OnceLock::new();
 
-        CONFIG.get_or_init(|| Configuration::new())
+        CONFIG.get_or_init(Configuration::new)
     }
 
     pub fn new() -> Self {

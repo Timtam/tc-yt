@@ -1,22 +1,25 @@
 #![allow(non_snake_case)]
 
 mod config;
+mod walker;
 
 use config::Configuration;
-use libc::strncpy;
+use libc::{strncpy, wcslen};
+use msgbox::IconType;
 use std::{
     ffi::{CStr, CString},
-    os::{raw::c_char, windows::raw::HANDLE},
-    path::PathBuf,
-};
-use widestring::U16CString;
-use windows_sys::{
-    core::w,
-    Win32::{
-        Foundation::{INVALID_HANDLE_VALUE, MAX_PATH},
-        Storage::FileSystem::{WIN32_FIND_DATAA, WIN32_FIND_DATAW},
-        UI::WindowsAndMessaging::{MessageBoxW, MB_OK},
+    mem::size_of,
+    os::{
+        raw::{c_char, c_void},
+        windows::raw::HANDLE,
     },
+    path::{Path, PathBuf},
+};
+use walker::DirectoryWalker;
+use widestring::WideChar;
+use windows_sys::Win32::{
+    Foundation::{SetLastError, ERROR_NO_MORE_FILES, INVALID_HANDLE_VALUE, MAX_PATH},
+    Storage::FileSystem::{WIN32_FIND_DATAA, WIN32_FIND_DATAW},
 };
 
 #[repr(C)]
@@ -69,9 +72,31 @@ pub unsafe extern "stdcall" fn FsGetDefRootName(name: *mut c_char, max_length: u
 
 #[no_mangle]
 pub unsafe extern "stdcall" fn FsFindFirstW(
-    _path: *const U16CString,
-    _find_data: *const WIN32_FIND_DATAW,
+    path: *const WideChar,
+    find_data: *mut WIN32_FIND_DATAW,
 ) -> HANDLE {
+    libc::memset(find_data as *mut c_void, 0, size_of::<WIN32_FIND_DATAW>());
+
+    let s = std::slice::from_raw_parts(path, wcslen(path));
+    let mut ps = String::from_utf16_lossy(s);
+    ps.remove(0);
+    let p = Path::new(&ps);
+    let w = DirectoryWalker::try_new(p);
+
+    if let Some(mut w) = w {
+        let e = w.next();
+
+        if let Some(e) = e {
+            e.apply_to(find_data);
+
+            let bw = Box::new(w);
+
+            return Box::into_raw(bw) as HANDLE;
+        } else {
+            SetLastError(ERROR_NO_MORE_FILES);
+        }
+    }
+
     INVALID_HANDLE_VALUE as HANDLE
 }
 
@@ -85,10 +110,19 @@ pub unsafe extern "stdcall" fn FsFindFirst(
 
 #[no_mangle]
 pub unsafe extern "stdcall" fn FsFindNextW(
-    _handle: HANDLE,
-    _find_data: *const WIN32_FIND_DATAW,
+    handle: HANDLE,
+    find_data: *mut WIN32_FIND_DATAW,
 ) -> bool {
-    false
+    let w: &mut DirectoryWalker = &mut *(handle as *mut DirectoryWalker);
+
+    let success = if let Some(e) = w.next() {
+        e.apply_to(find_data);
+        true
+    } else {
+        false
+    };
+
+    success
 }
 
 #[no_mangle]
@@ -100,7 +134,8 @@ pub unsafe extern "stdcall" fn FsFindNext(
 }
 
 #[no_mangle]
-pub unsafe extern "stdcall" fn FsFindClose(_handle: HANDLE) -> i32 {
+pub unsafe extern "stdcall" fn FsFindClose(handle: HANDLE) -> i32 {
+    drop(Box::from_raw(handle as *mut DirectoryWalker));
     0
 }
 
@@ -109,9 +144,9 @@ pub unsafe extern "stdcall" fn FsSetDefaultParams(dps: *const FsDefaultParamStru
     let c = Configuration::get();
     let s = CStr::from_ptr((&(*dps).DefaultIniName[0]) as *const i8);
     let mut p = PathBuf::from(s.to_str().unwrap());
-    
+
     p.pop();
-    
+
     p.push("tc_yt.ini");
 
     c.load_from_file(p.as_path());
