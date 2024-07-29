@@ -61,4 +61,8 @@ impl DirectoryWalker {
         self.entries.pop_front();
         self.entries.front().cloned()
     }
+
+    pub fn current(&self) -> Option<Entry> {
+        self.entries.front().cloned()
+    }
 }

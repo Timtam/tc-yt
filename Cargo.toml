@@ -13,8 +13,18 @@ strip = true
 
 [dependencies]
 configparser = "3.1.0"
-google-youtube3 = "5.0.5"
 libc = "0.2.155"
 msgbox = "0.7.0"
+native-windows-derive = "1.0.5"
+native-windows-gui = { version = "1.0.13", default-features = false, features = [
+    "combobox",
+    "frame",
+    "textbox",
+]}
+once_cell = "1.19.0"
+regex = "1.10.5"
+regex_static = "0.1.1"
+reqwest = { version = "0.12.5", default-features = false, features = ["brotli", "blocking", "charset", "gzip", "http2", "json", "rustls-tls"]}
+serde_json = "1.0.121"
 widestring = "1.1.0"
-windows-sys = { version = "0.52.0", features = ["Win32_Foundation", "Win32_Storage", "Win32_Storage_FileSystem", "Win32_UI_WindowsAndMessaging"  ]}
+windows-sys = { version = "0.52.0", features = ["Win32_Foundation", "Win32_Storage", "Win32_Storage_FileSystem"  ]}

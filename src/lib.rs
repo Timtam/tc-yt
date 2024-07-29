@@ -1,11 +1,16 @@
 #![allow(non_snake_case)]
 
+extern crate native_windows_derive as nwd;
+extern crate native_windows_gui as nwg;
+
 mod config;
+mod ui;
 mod walker;
 
 use config::Configuration;
 use libc::{strncpy, wcslen};
 use msgbox::IconType;
+use nwg::NativeUi;
 use std::{
     ffi::{CStr, CString},
     mem::size_of,
@@ -15,6 +20,7 @@ use std::{
     },
     path::{Path, PathBuf},
 };
+use ui::{NewLinkType, NewLinkUi};
 use walker::DirectoryWalker;
 use widestring::WideChar;
 use windows_sys::Win32::{
@@ -83,8 +89,8 @@ pub unsafe extern "stdcall" fn FsFindFirstW(
     let p = Path::new(&ps);
     let w = DirectoryWalker::try_new(p);
 
-    if let Some(mut w) = w {
-        let e = w.next();
+    if let Some(w) = w {
+        let e = w.current();
 
         if let Some(e) = e {
             e.apply_to(find_data);
@@ -150,4 +156,32 @@ pub unsafe extern "stdcall" fn FsSetDefaultParams(dps: *const FsDefaultParamStru
     p.push("tc_yt.ini");
 
     c.load_from_file(p.as_path());
+}
+
+#[no_mangle]
+pub unsafe extern "stdcall" fn FsMkDirW(path: *const WideChar) -> bool {
+    let s = std::slice::from_raw_parts(path, wcslen(path));
+    let mut ps = String::from_utf16_lossy(s);
+    ps.remove(0);
+    let p = Path::new(&ps);
+
+    if p.ancestors().count() == 2 {
+        nwg::init().expect("Failed to init Native Windows GUI");
+        nwg::Font::set_global_family("Segoe UI").expect("Failed to set default font");
+
+        let app = NewLinkUi::build_ui(Default::default()).expect("Failed to build UI");
+
+        nwg::dispatch_thread_events();
+
+        match app.get_new_link_type() {
+            NewLinkType::Account => true,
+            NewLinkType::None => false,
+        }
+    } else {
+        false
+    }
+}
+
+pub unsafe extern "stdcall" fn FsMkDir(path: *const c_char) -> bool {
+    false
 }
