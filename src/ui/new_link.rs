@@ -1,18 +1,11 @@
-use nwd::{NwgUi};
-use once_cell::sync::Lazy;
-use regex::Regex;
-use std::{cell::RefCell};
-
-#[derive(Copy, Clone, Default)]
-pub enum NewLinkType {
-    #[default]
-    None,
-    Account,
-}
+use crate::link::LinkType;
+use nwd::NwgUi;
+use regex_lite::Regex;
+use std::{cell::RefCell, sync::LazyLock};
 
 #[derive(Default)]
 pub struct NewLinkData {
-    r#type: NewLinkType,
+    r#type: LinkType,
 }
 
 #[derive(Default, NwgUi)]
@@ -29,7 +22,6 @@ pub struct NewLinkUi {
     new_link_selection: nwg::ComboBox<&'static str>,
 
     // linking an account
-
     #[nwg_control(flags: "VISIBLE")]
     #[nwg_layout_item(layout: layout, col: 1, row: 0)]
     account_frame: nwg::Frame,
@@ -66,13 +58,13 @@ impl NewLinkUi {
     }
 
     fn ok(&self) {
-        self.data.borrow_mut().r#type = NewLinkType::Account;
+        self.data.borrow_mut().r#type = LinkType::Account(self.oauth_input.text());
         self.window.close();
         nwg::stop_thread_dispatch();
     }
 
-    pub fn get_new_link_type(&self) -> NewLinkType {
-        self.data.borrow().r#type
+    pub fn get_link_type(&self) -> LinkType {
+        self.data.borrow().r#type.clone()
     }
 
     fn update_new_link_selection(&self) {
@@ -80,7 +72,8 @@ impl NewLinkUi {
     }
 
     fn update_oauth_input(&self) {
-        static OAUTH: Lazy<Regex> = regex_static::lazy_regex!("AIza[0-9A-Za-z-_]{35}");
+        static OAUTH: LazyLock<Regex> =
+            LazyLock::new(|| Regex::new("AIza[0-9A-Za-z-_]{35}").unwrap());
 
         if OAUTH.is_match(&self.oauth_input.text()) {
             self.ok_button.set_enabled(true)

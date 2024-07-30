@@ -4,11 +4,13 @@ extern crate native_windows_derive as nwd;
 extern crate native_windows_gui as nwg;
 
 mod config;
+mod link;
 mod ui;
 mod walker;
 
 use config::Configuration;
 use libc::{strncpy, wcslen};
+use link::{Link, LinkType};
 use msgbox::IconType;
 use nwg::NativeUi;
 use std::{
@@ -20,7 +22,7 @@ use std::{
     },
     path::{Path, PathBuf},
 };
-use ui::{NewLinkType, NewLinkUi};
+use ui::NewLinkUi;
 use walker::DirectoryWalker;
 use widestring::WideChar;
 use windows_sys::Win32::{
@@ -121,14 +123,12 @@ pub unsafe extern "stdcall" fn FsFindNextW(
 ) -> bool {
     let w: &mut DirectoryWalker = &mut *(handle as *mut DirectoryWalker);
 
-    let success = if let Some(e) = w.next() {
+    if let Some(e) = w.next() {
         e.apply_to(find_data);
         true
     } else {
         false
-    };
-
-    success
+    }
 }
 
 #[no_mangle]
@@ -166,6 +166,9 @@ pub unsafe extern "stdcall" fn FsMkDirW(path: *const WideChar) -> bool {
     let p = Path::new(&ps);
 
     if p.ancestors().count() == 2 {
+        let config = Configuration::get();
+        let dir_name = p.file_name().unwrap().to_str().unwrap();
+
         nwg::init().expect("Failed to init Native Windows GUI");
         nwg::Font::set_global_family("Segoe UI").expect("Failed to set default font");
 
@@ -173,15 +176,18 @@ pub unsafe extern "stdcall" fn FsMkDirW(path: *const WideChar) -> bool {
 
         nwg::dispatch_thread_events();
 
-        match app.get_new_link_type() {
-            NewLinkType::Account => true,
-            NewLinkType::None => false,
+        if app.get_link_type() == LinkType::None {
+            false
+        } else {
+            let l = Link::new(dir_name, app.get_link_type());
+            config.write(&l);
+            true
         }
     } else {
         false
     }
 }
 
-pub unsafe extern "stdcall" fn FsMkDir(path: *const c_char) -> bool {
+pub unsafe extern "stdcall" fn FsMkDir(_path: *const c_char) -> bool {
     false
 }

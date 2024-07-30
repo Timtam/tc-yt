@@ -1,4 +1,3 @@
-use libc;
 use msgbox::IconType;
 use std::{collections::VecDeque, ffi::c_void, mem::size_of, path::Path};
 use widestring::U16String;
@@ -39,12 +38,11 @@ pub struct DirectoryWalker {
 
 impl DirectoryWalker {
     pub fn try_new(p: &Path) -> Option<Self> {
-        let entries: VecDeque<Entry>;
-        if p.ancestors().count() == 1 {
-            entries = DirectoryWalker::get_root_entries();
+        let entries: VecDeque<Entry> = if p.ancestors().count() == 1 {
+            DirectoryWalker::get_root_entries()
         } else {
             return None;
-        }
+        };
 
         Some(Self { entries })
     }
