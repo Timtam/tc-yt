@@ -2,8 +2,10 @@ use crate::link::{Link, LinkType};
 use configparser::ini::Ini;
 use std::{
     path::{Path, PathBuf},
+    str::FromStr,
     sync::{Mutex, OnceLock},
 };
+use uuid::Uuid;
 
 struct ConfigurationData {
     ini: Ini,
@@ -54,5 +56,46 @@ impl Configuration {
         if let Some(p) = data.path.as_ref() {
             let _ = data.ini.write(p);
         }
+    }
+
+    pub fn get_link(&self, name: &str) -> Option<Link> {
+        let data = self.data.lock().unwrap();
+
+        data.ini
+            .sections()
+            .iter()
+            .find(|id| data.ini.get(id, "name") == Some(name.to_string()))
+            .and_then(|id| match data.ini.get(id, "type").as_deref() {
+                Some("account") => {
+                    if let Some(api_key) = data.ini.get(id, "api_key") {
+                        Some(Link {
+                            name: name.to_string(),
+                            r#type: LinkType::Account(api_key),
+                            id: Uuid::from_str(id).unwrap(),
+                        })
+                    } else {
+                        None
+                    }
+                }
+                _ => None,
+            })
+    }
+
+    pub fn get_links(&self) -> Vec<Link> {
+        let data = self.data.lock().unwrap();
+
+        let names = data
+            .ini
+            .sections()
+            .iter()
+            .filter_map(|id| data.ini.get(id, "name"))
+            .collect::<Vec<_>>();
+
+        drop(data);
+
+        names
+            .iter()
+            .filter_map(|n| self.get_link(&n))
+            .collect::<Vec<_>>()
     }
 }

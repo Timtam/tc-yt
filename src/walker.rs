@@ -1,3 +1,4 @@
+use crate::config::Configuration;
 use msgbox::IconType;
 use std::{collections::VecDeque, ffi::c_void, mem::size_of, path::Path};
 use widestring::U16String;
@@ -48,11 +49,26 @@ impl DirectoryWalker {
     }
 
     pub fn get_root_entries() -> VecDeque<Entry> {
-        VecDeque::from([Entry {
-            read_only: true,
-            file: true,
-            name: "F7=Create new link.txt".to_string(),
-        }])
+        VecDeque::from(
+            [
+                Configuration::get()
+                    .get_links()
+                    .iter()
+                    .map(|e| Entry {
+                        file: false,
+                        name: e.name.clone(),
+                        read_only: true,
+                    })
+                    .collect::<Vec<_>>()
+                    .as_slice(),
+                &[Entry {
+                    read_only: true,
+                    file: true,
+                    name: "F7=Create new link.txt".to_string(),
+                }],
+            ]
+            .concat(),
+        )
     }
 
     pub fn next(&mut self) -> Option<Entry> {
